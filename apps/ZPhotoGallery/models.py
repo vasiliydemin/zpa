@@ -82,6 +82,25 @@ class ZPGFile(models.Model):
             return thumbs
 
 
+class ZPGCloudFile(models.Model):
+    filename = models.CharField(max_length=128, blank=True, null=True)
+    preview = models.CharField(max_length=512, blank=True, null=True)
+    path = models.CharField(max_length=512, blank=True, null=True)
+    hash = models.CharField(max_length=254, blank=True, null=True, unique=True)
+    mime_type = models.CharField(max_length=56, blank=True, null=True)
+    size = models.FloatField(blank=True, null=True)
+
+    created = models.DateTimeField(auto_now_add=True)
+    last_upd = models.DateTimeField(auto_now=True)
+    is_deleted = models.BooleanField(blank=True, default=False)
+    is_loaded = models.BooleanField(blank=True, default=False)
+
+    def get_owner(self):
+        return '/'.join(self.path.split('/')[1:-1])
+
+    def __str__(self):
+        return self.filename
+
 @receiver(pre_delete, sender=ZPGFile)
 def _delete_th(sender, instance, **kwargs):
     if instance.image:
@@ -89,16 +108,17 @@ def _delete_th(sender, instance, **kwargs):
         storage.delete(path)
 
 
-
-
 class ZPhotoGalleryAdmin(admin.ModelAdmin):
     pass
+
+class ZPGCloudFileAdmin(admin.ModelAdmin):
+    list_display = ["__str__", "get_owner"]
+    list_filter = ["is_loaded"]
 
 class TagAdmin(admin.ModelAdmin):
     list_display = ["tag"]
 
 class ZPGFileAdmin(admin.ModelAdmin):
-#    search_fields = ["ext"]
     list_display = ["image_img", "__str__", "ext", "size", "camera", "file_date", "created"]
     list_filter = [('file_date', DateFieldListFilter), "tags", "ext", "camera"]
 

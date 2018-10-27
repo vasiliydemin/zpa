@@ -10,3 +10,4 @@ from .models import *
 admin.site.register(ZPhotoGallerys, ZPhotoGalleryAdmin)
 admin.site.register(Tag, TagAdmin)
 admin.site.register(ZPGFile, ZPGFileAdmin)
+admin.site.register(ZPGCloudFile, ZPGCloudFileAdmin)

@@ -28,7 +28,7 @@ DEBUG = True
 ALLOWED_HOSTS = []
 
 ZPG_DATA_STORAGE = '/media/sf_E_DRIVE/PHOTO_STORAGE'
-ZPG_IMPORT_STORAGE = '/media/sf_E_DRIVE/PHOTO_IMPORT'
+ZPG_IMPORT_STORAGE = os.path.join('d:\\','prog','ZFotoArchive','PHOTO_IMPORT')
 
 # Application definition
 
