@@ -5,7 +5,7 @@ import os
 from multiprocessing import Process, Queue, JoinableQueue
 from apps.YaDiskLib.YandexDiskRestClient import YandexDiskRestClient
 from apps.YaDiskLib.YandexDiskException import YandexDiskException
-from token import *
+from tokenlo import *
 
 if __name__ == "__main__":
     os.environ.setdefault("DJANGO_SETTINGS_MODULE", "ZFotoArchive.settings")
