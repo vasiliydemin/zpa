@@ -36,7 +36,7 @@ def uploadF(cli):
 
 
 if __name__ == "__main__":
-    os.environ.setdefault("DJANGO_SETTINGS_MODULE", "ZFotoArchive.settings")
+    os.environ.setdefault("DJANGO_SETTINGS_MODULE", "zPhotoArchive.settings")
 
     from django.conf import settings
     import django
