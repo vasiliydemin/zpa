@@ -12,6 +12,7 @@ import requests
 from .models import *
 import subprocess
 import re
+from local_settings import *
 
 
 def save_cloud_file(clofile, cli=None, dir_import=''):
@@ -49,28 +50,27 @@ def export_from_cloud(dirs, cli, dir_import):
             print (item.md5, item.type, item.path)
             save_ZPGCloudFile(item)
 
-    for cloit in ZPGCloudFile.objects.filter(is_loaded=False)[:10]:
+    for cloit in ZPGCloudFile.objects.filter(is_loaded=False, path__startswith='disk:/Фотокамера (deminvlad09)')[:10]:
         print(cloit.filename)
         save_cloud_file(cloit, cli, dir_import)
 
 
 def import_to_zpa(dir_storage, dir_import):
 
-    print(dir_storage)
-    for item in os.listdir(dir_storage):
-        item_path = os.path.join(dir_storage, item)
+    for item in os.listdir(dir_import):
+        item_path = os.path.join(dir_import, item)
         print (item_path)
 
         if os.path.isdir(item_path) == True:
-            import_to_zpa(item_path, dir_import)
+            import_to_zpa(dir_storage, item_path)
         else:
             item_hash = getItemHash(item_path)
 
-            if ZPGFile.objects.filter(hash=item_hash):
+            if not ZPGFile.objects.filter(hash=item_hash) or 1:
                 zfile = ZPGFile()
 
-                exif = get_exif_data(item_hash)
-                zfile.file_date = get_datetime_from_exif(item_path, exif) or get_datetime_from_file(item_path) or get_datetime_from_path(item_path)
+                exif = get_exif_data(item_path)
+                zfile.file_date = get_datetime_from_exif(item_path, exif) or get_datetime_from_path(item_path) or get_datetime_from_file(item_path)
                 zfile.ext = item.split('.')[-1]
                 zfile.filename = '%s%s.%s' % (zfile.file_date.strftime('%Y%m%d%H%M%S'), str(time.time())[6:].replace('.', ''), zfile.ext)
                 zfile.orig_path = item_path
@@ -79,26 +79,21 @@ def import_to_zpa(dir_storage, dir_import):
                 zfile.camera=get_camera_from_exif(exif)
                 zfile.image.name = '%s/%s' % (zfile.file_date.strftime('%Y/%m'), zfile.filename)
 
-                hw_isv = getItemSize(ItemPath)
-
+                hw_isv = get_media_size(item_path)
                 zfile.width, zfile.height = hw_isv[0]
                 if hw_isv[0]!=(0,0):
                     zfile.is_movie = hw_isv[1]
                 else:
                     zfile.is_movie = 0
 
-
-                #print zfile.width, zfile.height
-                savedfile = copyFileToStorage(data = data, istorage = dir_storage)
+                savedfile = copy_file_to_storage(zfile, dir_storage)
 
                 if savedfile[0]:
                     if savedfile[1]:
                         zfile.width, zfile.height = zfile.height, zfile.width
-                    #print zfile.width, zfile.height
                     zfile.save()
                     print ('saved')
-                    imported_cnt =+ 1
-                    for kw in getKWfromPath(path = ItemPath, fdir = dir_import):
+                    for kw in get_kw_from_path(item_path, dir_import):
                         zfile.tags.add(kw)
                     zfile.save()
 
@@ -107,6 +102,167 @@ def import_to_zpa(dir_storage, dir_import):
                     del zfile
             else:
                 print('exists')
+
+
+def get_kw_from_path(path, fdir):
+    rkw=[]
+
+    stopw = ['CLOUD', 'новая', 'печ', 'тел', 'телефон', 'телефон2' , 'Фигня', 'флешка', 'Фотки', 'фото', 'Фото', 'digimax', 'fignay', 'new', 'new2', 'other', 'print', 'telefon', 'vid', 'vsyakoe', 'всякое', 'к', 'На отправку', 'на печать', '103d5000', '101anv01', '.picasaoriginals','fromdisks', 'fromdisks2', 'foto', 'fotos_1']+[str(i) for i in range(0, 50)]+['foto_'+str(i) for i in range(0, 50)]
+
+    kw = [z.lower() for z in path.replace(fdir, '').split('/')[:-1] if z and z.lower() not in stopw]
+
+    for k in kw:
+        k = k.replace('\'','')
+        tg = Tag.objects.filter(tag=k)
+        if tg:
+            rkw.append(tg[0])
+        else:
+            tg = Tag.objects.create(tag=k)
+            rkw.append(tg)
+    return rkw
+
+
+def copy_file_to_storage(zpgfile, istorage):
+
+    thumb_sizes={'thumb':(250, 250),
+                 'normal':(1280, 1280)}
+
+    new_size = 0
+
+    try:
+        pyear = os.path.join(istorage, zpgfile.image.name.split('/')[0])
+        pmonth = os.path.join(pyear, zpgfile.image.name.split('/')[1])
+        pfile = os.path.join(istorage, zpgfile.image.name)
+
+        if not os.path.exists(pyear):
+            os.makedirs(pyear)
+
+        if not os.path.exists(pmonth):
+            os.makedirs(pmonth)
+
+        print (zpgfile.orig_path, pfile)
+        shutil.copy2(zpgfile.orig_path, pfile)
+
+        isimg = 0
+        try:
+            Image.open(pfile)
+            isimg = 1
+        except:
+            pass
+
+        if '.THM' in pfile:
+            isimg = 0
+
+        if isimg:
+            z=Image.open(pfile)
+            for orientation in TAGS.keys():
+                if TAGS[orientation] == 'Orientation': break
+
+            if '_getexif' in dir(z):
+                fex = z._getexif()
+            else:
+                fex = None
+            if fex:
+                exif=dict(z._getexif().items())
+
+                if exif.get(orientation,'*') != '*':
+                    if exif[orientation] == 3 :
+                        z=z.rotate(180, expand=True)
+                    elif exif[orientation] == 6 :
+                        z=z.rotate(270, expand=True)
+                        new_size=1
+                    elif exif[orientation] == 8 :
+                        z=z.rotate(90, expand=True)
+                        new_size=1
+                    z.save(pfile, quality = 100)
+
+                    #TODO: здесь какой-то косяк происходит, не копируются exif данные
+                    #/mnt/drive_d/PHOTO_IMPORT/Анина свадьба 13.07.13/IMG_1785.JPG /mnt/drive_d/PHOTO_STORAGE/2013/07/20130712104615862913.JPG
+                    #try:
+                    #    oldmeta = pyexiv2.ImageMetadata(data['orig_path'])
+                    #    oldmeta.read()
+                    #
+                    #    newmeta = pyexiv2.ImageMetadata(pfile)
+                    #    newmeta.read()
+
+                    #    oldmeta.copy(newmeta)
+                    #    new_size = z.size
+                    #    newmeta['Exif.Image.Orientation'] = 1
+                    #    newmeta["Exif.Photo.PixelXDimension"] = z.size[0]
+                    #    newmeta["Exif.Photo.PixelYDimension"] = z.size[1]
+
+                    #    newmeta.write()
+                    #except:
+                    #    print 'ZZZ: meta bag'
+
+            for thms in thumb_sizes.keys():
+                th_p = os.path.join(istorage, thms)
+                th_pyear = os.path.join(th_p, zpgfile.image.name.split('/')[0])
+                th_pmonth = os.path.join(th_pyear, zpgfile.image.name.split('/')[1])
+                th_pfile = os.path.join(istorage, thms, zpgfile.image.name)
+
+                if not os.path.exists(th_p):
+                    os.makedirs(th_p)
+
+                if not os.path.exists(th_pyear):
+                    os.makedirs(th_pyear)
+
+                if not os.path.exists(th_pmonth):
+                    os.makedirs(th_pmonth)
+
+                try:
+                    if not zpgfile.is_movie:
+
+                        z=Image.open(pfile)
+
+                        if thms == 'thumb':
+                            width, height = z.size
+                            if width > height:
+                                delta = width - height
+                                left = int(delta/2)
+                                upper = 0
+                                right = height + left
+                                lower = height
+                            else:
+                               delta = height - width
+                               left = 0
+                               upper = int(delta/2)
+                               right = width
+                               lower = width + upper
+
+                            z = z.crop((left, upper, right, lower))
+
+                        z.thumbnail(thumb_sizes[thms], Image.ANTIALIAS)
+                        z.save(th_pfile, quality = 75)
+                except:
+                    pass
+        else:
+            pass
+    except:
+        return (0, new_size)
+
+    return (1, new_size)
+
+
+def get_media_size(path):
+    pt_dim = re.compile(r'Stream.*Video.* ([0-9]+)x([0-9]*)')
+    pt_isv = re.compile(r'Duration: 00:00:00')
+
+    p = subprocess.Popen([ffmpeg_path, '-i', path],
+                         stdout=subprocess.PIPE,
+                         stderr=subprocess.PIPE)
+    stdout, stderr = p.communicate()
+    stderr = stderr.decode("utf-8")
+    match, match_v = pt_dim.search(stderr), pt_isv.search(stderr)
+    x = y = z = 0
+
+    if match:
+        x, y = map(int, match.groups()[0:2])
+
+    if not match_v:
+        z=1
+
+    return (x, y), z
 
 
 def get_camera_from_exif(exif={}):
@@ -137,28 +293,31 @@ def get_datetime_from_exif(file, exif={}):
 
 
 def get_datetime_from_path(path):
+    #TODO: сделать нормальный поиск даты в пути
     re1= re.compile(r'(\d{2})[\.\:\-\/](\d{4})')
     re2= re.compile(r'(\d{4})[\.\:\-\/](\d{2})')
     re3= re.compile(r'(.*)(\d{4}).*')
-    gg = path.split('/')
+    gg = path.split(os.path.sep)
     gg.reverse()
-
     dt = {'m':1, 'y':1900, 'd':1}
 
-    for pf in gg[1:]:
+    for pf in gg:
         ptt = re1.findall(pf)
         if ptt:
             dt['m'] = ptt[0][0]
             dt['y'] = ptt[0][1]
+            break
 
         ptt = re2.findall(pf)
         if ptt:
             dt['m'] = ptt[0][1]
             dt['y'] = ptt[0][0]
+            break
 
         ptt = re3.findall(pf)
         if ptt:
             dt['y'] = ptt[0][1]
+            break
 
         if dt['y'] != 1900:
             break

@@ -5,7 +5,7 @@ import os
 from multiprocessing import Process, Queue, JoinableQueue
 from apps.YaDiskLib.YandexDiskRestClient import YandexDiskRestClient
 from apps.YaDiskLib.YandexDiskException import YandexDiskException
-from tokenlo import *
+from local_settings import *
 
 
 if __name__ == "__main__":
@@ -26,12 +26,11 @@ if __name__ == "__main__":
 
     # забираем из облака
     print('expot from Cloud')
-    export_from_cloud(local_dirs(),cli, dir_import)
+    #export_from_cloud(local_dirs(),cli, dir_import)
 
     # импортируем в фотоархив
     #print('import to PhotoArchive')
     import_to_zpa(dir_storage = dir_storage, dir_import=dir_import)
-    #s=scanImportFolder(i_dir=dir_import, result=[], dir_storage = dir_storage, dir_import=dir_import)
 
 
 
